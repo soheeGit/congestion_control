@@ -20,8 +20,6 @@ typedef struct {
 } packetStruct;
 #pragma pack(pop)
 
-bool ack_received[MAX_SEQ] = {FALSE}; // ACK 수신 상태를 추적
-
 // 역직렬화 함수
 void deserialize_packet(char *buffer, packetStruct *packet) {
     int offset = 0;
@@ -47,7 +45,9 @@ void deserialize_packet(char *buffer, packetStruct *packet) {
     offset += BUFFER_SIZE;
 }
 
-int handle_packet(SOCKET sockfd, char *buffer, size_t buffer_size, struct sockaddr_in *client_addr, int *client_len, int *lastpacketID, bool *first_input, packetStruct *window, bool *frist) {
+int handle_packet(SOCKET sockfd, char *buffer, size_t buffer_size, struct sockaddr_in *client_addr, 
+int *client_len, int *lastpacketID, bool *first_input, packetStruct *window, bool *frist) {
+    // 데이터 수신
     int n = recvfrom(sockfd, buffer, buffer_size, 0, (struct sockaddr *)client_addr, client_len);
     if (n == SOCKET_ERROR) {
         printf("Receive failed. Error Code : %d\n", WSAGetLastError());
@@ -59,12 +59,12 @@ int handle_packet(SOCKET sockfd, char *buffer, size_t buffer_size, struct sockad
 
     printf("----------> packet %d received\n", received_packet.packetId);//수신 출력 체크
     if (*frist && received_packet.action == 2 && received_packet.packetId == 7) {
-        printf("Intentional packet %d ignoring\n\n", received_packet.packetId);
+        printf("Intentional packet %d ignoring **3-duk**\n\n", received_packet.packetId);
         *frist = FALSE;//해당 코드가 한번만 작동하도록함, 3-duk용
         return -1;//특정 조건 만족시 이후 행동 안하고 종료
     }
     if (*frist && received_packet.action == 3 && received_packet.packetId == 6) {
-        printf("Intentional packet %d time out\n\n", received_packet.packetId);
+        printf("Intentional packet %d ignoring**time out**\n\n", received_packet.packetId);
         *frist = FALSE;//해당 코드가 한번만 작동하도록함, 타임아웃용
         Sleep(3000);
         return -1;//특정 조건 만족시 이후 행동 안하고 종료
@@ -79,7 +79,8 @@ int handle_packet(SOCKET sockfd, char *buffer, size_t buffer_size, struct sockad
     return 0; // 성공
 }
 
-void selective_repeat(SOCKET sockfd, char *buffer, size_t buffer_size, struct sockaddr_in *client_addr, int *client_len, int *lastpacketID, bool *first_input) {
+void selective_repeat(SOCKET sockfd, char *buffer, size_t buffer_size, 
+struct sockaddr_in *client_addr, int *client_len, int *lastpacketID, bool *first_input) {
     int rcv_base = 0;  // 수신된 패킷의 기준 시퀀스 번호
     packetStruct window[WINDOW_SIZE];  // 윈도우 버퍼
     bool frist = TRUE;
@@ -93,9 +94,10 @@ void selective_repeat(SOCKET sockfd, char *buffer, size_t buffer_size, struct so
         int seq_num = rcv_base % WINDOW_SIZE;  // 현재 윈도우의 시퀀스 번호
 
         // 패킷 처리
-        if (handle_packet(sockfd, buffer, buffer_size, client_addr, client_len, lastpacketID, first_input, window, &frist) != 0) {
+        if (handle_packet(sockfd, buffer, buffer_size, client_addr, client_len, 
+        lastpacketID, first_input, window, &frist) != 0) {
             printf("3-duk or time out occurr\n");
-            continue;;
+            continue;
         }
 
         // 윈도우 내에서 처리된 패킷 확인

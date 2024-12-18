@@ -96,13 +96,15 @@ int receive_ack(SOCKET sockfd, struct sockaddr_in *server_addr, char *buffer, pa
             packet[i].is_ack = TRUE;
         }
     }
+    
         
     printf("<--- ACK %d received\n", temp);
     fflush(stdout);
     return temp;
 }
 
-void handle_3_dup_ack(int dup_ack, int *window_size, float *threshold, SOCKET sockfd, struct sockaddr_in *server_addr, packetStruct *packetArray, char *buffer) {
+void handle_3_dup_ack(int dup_ack, int *window_size, float *threshold, SOCKET sockfd, 
+struct sockaddr_in *server_addr, packetStruct *packetArray, char *buffer) {
     printf("3-dup-ACK detected for packet %d\n", dup_ack);
     *threshold = *window_size / 2.0;
     *window_size = (int)(*threshold) + 3;
@@ -114,13 +116,6 @@ void handle_3_dup_ack(int dup_ack, int *window_size, float *threshold, SOCKET so
     } else {
         printf("Packet %d retransmitted successfully.\n", dup_ack + 1);
     }
-}
-
-void handle_timeout(int *window_size, float *threshold) {
-    printf("Timeout detected\n");
-    *threshold = *window_size / 2.0;
-    *window_size = 1;
-    printf("Threshold updated to %.2f, window size reset to %d\n", *threshold, *window_size);
 }
 
 void detect_3duk(int ackID, int *lastID, bool *first_input, int *count, int *window_size, float *threshold, 
@@ -137,7 +132,8 @@ void detect_3duk(int ackID, int *lastID, bool *first_input, int *count, int *win
         if (*count >= 3) {
             *count = 0;
             printf("\n***** 3-duplicate ACK *****\n\n");
-            handle_3_dup_ack(*lastID, window_size, threshold, sockfd, server_addr, packetArray, buffer); // 3-duplicate ACK 처리
+            // 3-duplicate ACK 처리
+            handle_3_dup_ack(*lastID, window_size, threshold, sockfd, server_addr, packetArray, buffer); 
             *shared_timer = GetTickCount();
         }
     }
@@ -158,7 +154,6 @@ void time_reset(int ackID, int *lastID, bool *first_input, DWORD *shared_timer, 
 DWORD WINAPI recv_ack_thread_func(LPVOID lpParam) {
     int lastID1, lastID2, count = 0;
     bool first_input1 = TRUE, first_input2 = TRUE;
-    //int lastSentTime = GetTickCount();
     threadParams *params = (threadParams *)lpParam;
     
     *(params->accum_ack) = receive_ack(params->sockfd, &params->server_addr, params->buffer, params->packetArray);
@@ -244,7 +239,7 @@ int main() {
                 }
             }
         }
-        //
+        
         bool timeout_occurred = FALSE;
 
         while (1) {
@@ -268,31 +263,22 @@ int main() {
 
             // 타임아웃 처리: 4초 초과 시 종료
             if (GetTickCount() - shared_timer > 4000) {
+                shared_timer = GetTickCount();
                 printf("Timeout occurred for packets %d to %d\n", i, window_end - 1);
                 threshold = window_size / 2.0;
                 window_size = 1; // 윈도우 크기 감소
                 printf("Threshold updated to %.2f, window size reset to %d\n\n", threshold, window_size);
                 timeout_occurred = TRUE;
-
-                // 타임아웃된 패킷 재전송
-                for (int j = i; j < window_end; j++) {
-                    if (!packet[j].is_ack) { // ACK를 받지 못한 패킷만 재전송
-                        if (send_packet(sockfd, &packet[j], &server_addr, buffer) != 0) {
-                            printf("Error resending packet %d\n", packet[j].packetId);
-                        }
-                    }
-                }
+                
                 break;            
             }
 
             Sleep(100);  // 잠시 대기
         }
-
         if (timeout_occurred) {
             // 누적 ACK에 따라 i를 갱신 (가장 마지막으로 ACK 받은 패킷 다음으로 이동)
             i = accum_ack + 1;
             timeout_occurred = FALSE;
-            printf("The value of i has changed according to the accumulated ack\n");
         }
     }
 
